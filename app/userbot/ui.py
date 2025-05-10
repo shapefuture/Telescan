@@ -1,7 +1,7 @@
 # Utilities for building Telegram keyboard layouts and formatting messages
 
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 logger = logging.getLogger("telegram_insight_agent.userbot.ui")
 
@@ -22,6 +22,43 @@ def format_monitored_chats_list(chats: List[Any]) -> str:
     formatted = "\n".join([f"• <b>{c.chat_title}</b> (<code>{c.chat_id}</code>)" for c in chats])
     logger.debug("Formatted chat list.")
     return formatted
+
+def build_settings_keyboard() -> Optional[list]:
+    """
+    Build an inline keyboard for /settings (for future expansion).
+
+    Returns:
+        Inline keyboard markup as a list (or None if not available).
+    """
+    logger.debug("Building /settings inline keyboard.")
+    try:
+        # Example: two buttons for "Show" and "Set Prompt"
+        from telethon.tl.custom import Button
+        keyboard = [
+            [Button.inline("Show Prompt", b"settings_show")],
+            [Button.inline("Set Prompt", b"settings_set")],
+        ]
+        logger.info("Built /settings keyboard.")
+        return keyboard
+    except ImportError:
+        logger.warning("Telethon Button not available, skipping keyboard build.")
+        return None
+    except Exception as e:
+        logger.error(f"Error building settings keyboard: {e}")
+        return None
+
+# --- Pytest skeleton ---
+
+"""
+def test_build_settings_keyboard_success(monkeypatch):
+    class FakeButton:
+        @staticmethod
+        def inline(text, data): return (text, data)
+    monkeypatch.setitem(__import__('sys').modules, 'telethon.tl.custom', type('Mod', (), {'Button': FakeButton}))
+    from app.userbot.ui import build_settings_keyboard
+    kb = build_settings_keyboard()
+    assert kb is not None and len(kb) == 2
+"""
 
 async def update_manual_run_status_message(client: Any, request_id: str, status: str) -> None:
     """
