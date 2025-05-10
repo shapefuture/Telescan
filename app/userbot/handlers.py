@@ -52,6 +52,75 @@ async def handle_monitor_add(event: NewMessage.Event) -> None:
 
 # ... other handlers above ...
 
+from app.shared.db_crud import get_recent_jobs_for_user
+
+async def handle_status(event: Any) -> None:
+    """
+    Handle the /status command for showing recent job status.
+
+    Usage:
+        /status
+
+    Shows recent job runs (manual/scheduled) for the user.
+    """
+    logger.info(f"handle_status called: raw_text={getattr(event, 'raw_text', None)!r}")
+    try:
+        user_id = event.sender_id
+        async with async_sessionmaker() as session:
+            jobs = await get_recent_jobs_for_user(session, user_id, limit=10)
+        if not jobs:
+            await event.reply("You have no recent monitored chat runs.")
+            logger.info(f"No recent jobs for user_id={user_id}")
+            return
+        lines = []
+        for job in jobs:
+            lines.append(
+                f"<b>{job.chat_title}</b> (<code>{job.chat_id}</code>): "
+                f"<code>{job.status}</code> {job.detail or ''} "
+                f"<i>{job.created_at.strftime('%Y-%m-%d %H:%M')}</i>"
+            )
+        msg = "Recent monitored chat runs:\n\n" + "\n".join(lines)
+        await event.reply(msg)
+        logger.info(f"Sent recent job status for user_id={user_id}")
+    except Exception as e:
+        logger.exception(f"Failed to process /status: {e}")
+        await event.reply(f"Failed to process /status: {e}")
+
+"""
+# Pytest skeleton
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from app.userbot import handlers
+
+@pytest.mark.asyncio
+async def test_handle_status_no_jobs(monkeypatch):
+    event = MagicMock()
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    monkeypatch.setattr(handlers, "get_recent_jobs_for_user", AsyncMock(return_value=[]))
+    await handlers.handle_status(event)
+    event.reply.assert_called_with("You have no recent monitored chat runs.")
+
+@pytest.mark.asyncio
+async def test_handle_status_some_jobs(monkeypatch):
+    event = MagicMock()
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    Job = type("Job", (), {})
+    job = Job()
+    job.chat_title = "Test"
+    job.chat_id = 123
+    job.status = "SUCCESS"
+    job.detail = "ok"
+    import datetime
+    job.created_at = datetime.datetime.now()
+    monkeypatch.setattr(handlers, "get_recent_jobs_for_user", AsyncMock(return_value=[job]))
+    await handlers.handle_status(event)
+    event.reply.assert_called()
+    assert "Test" in event.reply.call_args[0][0]
+"""
+
 import logging
 from typing import Any
 from app.shared.database import async_sessionmaker
