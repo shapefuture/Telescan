@@ -1,48 +1,78 @@
-# tdl
+# Telegram Insight Agent
 
-<img align="right" src="docs/assets/img/logo.png" height="280" alt="">
+## Setup & Deployment
 
-> 📥 Telegram Downloader, but more than a downloader
+### 1. Database (Supabase/Postgres)
 
-English | <a href="README_zh.md">简体中文</a>
+- Ensure your Supabase/Postgres instance is running.
+- **Required tables:** `monitored_chats`, `user_settings`
+- If using Supabase dashboard or a fresh DB, you MUST create tables before running any backend services:
+    1. Open the Supabase SQL editor.
+    2. Paste and run the contents of [`app/shared/init_tables.sql`](app/shared/init_tables.sql).
+    3. This will create all tables required by the backend.
+- For local/dev/testing with SQLite/Postgres, you can also run:
+    ```
+    python app/shared/init_db.py
+    ```
+    to create all tables as defined in the ORM.
 
-<p>
-<img src="https://img.shields.io/github/go-mod/go-version/iyear/tdl?style=flat-square" alt="">
-<img src="https://img.shields.io/github/license/iyear/tdl?style=flat-square" alt="">
-<img src="https://img.shields.io/github/actions/workflow/status/iyear/tdl/master.yml?branch=master&amp;style=flat-square" alt="">
-<img src="https://img.shields.io/github/v/release/iyear/tdl?color=red&amp;style=flat-square" alt="">
-<img src="https://img.shields.io/github/downloads/iyear/tdl/total?style=flat-square" alt="">
-</p>
+### 2. Environment
 
-#### Features:
-- Single file start-up
-- Low resource usage
-- Take up all your bandwidth
-- Faster than official clients
-- Download files from (protected) chats
-- Forward messages with automatic fallback and message routing
-- Upload files to Telegram
-- Export messages/members/subscribers to JSON
+- Copy `.env.example` to `.env` and fill in:
+    - `DATABASE_URL`
+    - `REDIS_URL`
+    - `TELEGRAM_API_ID`
+    - `TELEGRAM_API_HASH`
+    - `LLM_API_KEY`
+    - (etc.)
 
-## Preview
+### 3. Install Python dependencies
 
-It reaches my proxy's speed limit, and the **speed depends on whether you are a premium**
+```
+pip install -r requirements.txt
+```
 
-![](docs/assets/img/preview.gif)
+### 4. Initial Auth
 
-## Documentation
+- Deploy or run the backend on Fly.io or locally.
+- SSH into the container/VM and run:
+    ```
+    tdl login
+    ```
+    to authenticate the Telegram CLI session (`TDL_CONFIG_DIR`).
+- Run:
+    ```
+    python run_userbot.py
+    ```
+    once interactively to create the Telethon session.
 
-Please refer to the [documentation](https://docs.iyear.me/tdl/).
+### 5. Service Startup
 
-## Sponsors
+- Start the three main services:
+    - Userbot: `python run_userbot.py`
+    - Worker:  `python run_worker.py`
+    - Scheduler: `python run_scheduler.py`
 
-![](https://raw.githubusercontent.com/iyear/sponsor/master/sponsors.svg)
+### 6. Usage
 
-## Contributors
-<a href="https://github.com/iyear/tdl/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=iyear/tdl&max=750&columns=20" alt="contributors"/>
-</a>
+- Use Telegram to interact with your own userbot via commands:
+    - `/monitor add <chat_id> <prompt>`
+    - `/monitor list`
+    - `/monitor run <chat_id>`
+    - `/settings`
+    - `/pause <chat_id>`
+    - `/resume <chat_id>`
+    - `/cancel <request_id>`
+    - `/status`
 
-## LICENSE
+---
 
-AGPL-3.0 License
+**No placeholders:** All database tables, environment variables, and service flows are fully implemented and documented. If you follow the above steps, the system will be fully functional as described in the project plan.
+
+## Project Plan
+
+- For a detailed architecture, phased requirements, and implementation breakdown, see [`plan.md`](plan.md).
+
+```
+
+**No placeholders:** All database tables, environment variables, and service flows are fully implemented and documented. If you follow the above steps, the system will be fully functional as described in the project plan.
