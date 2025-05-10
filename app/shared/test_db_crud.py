@@ -38,5 +38,21 @@ async def main():
         removed = await db_crud.remove_monitored_chat(session, TEST_USER_ID, TEST_CHAT_ID)
         print("Removed:", removed)
 
+async def test_user_settings():
+    from app.shared.db_crud import set_default_prompt, get_default_prompt
+    async with async_sessionmaker() as session:
+        user_id = 555555
+        prompt1 = "Summarize daily"
+        prompt2 = "Summarize only important"
+        await set_default_prompt(session, user_id, prompt1)
+        got = await get_default_prompt(session, user_id)
+        print(f"Default prompt set: {got}")
+        assert got == prompt1
+        await set_default_prompt(session, user_id, prompt2)
+        got2 = await get_default_prompt(session, user_id)
+        print(f"Default prompt updated: {got2}")
+        assert got2 == prompt2
+
 if __name__ == "__main__":
     asyncio.run(main())
+    asyncio.run(test_user_settings())
