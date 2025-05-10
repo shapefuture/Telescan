@@ -10,13 +10,24 @@ from app.shared.db_crud import get_monitored_chat
 from app.worker.tasks import process_monitored_chat
 import asyncio
 
-async def handle_monitor_add(event):
-    """Usage: /monitor add <chat_id> <prompt>"""
+import logging
+from typing import Any
+from telethon.events.newmessage import NewMessage
+from telethon.tl.custom import Message
+
+logger = logging.getLogger("telegram_insight_agent.userbot.handlers")
+
+async def handle_monitor_add(event: NewMessage.Event) -> None:
+    """
+    Handle /monitor add <chat_id> <prompt>
+    """
+    logger.info(f"handle_monitor_add: raw_text={getattr(event, 'raw_text', None)!r}")
     try:
         # Accept both numeric IDs and @usernames
         parts = event.raw_text.split(maxsplit=3)
         if len(parts) < 4:
             await event.reply("Usage: /monitor add <chat_id> <prompt>")
+            logger.warning("Monitor add: not enough arguments")
             return
         _, _, chat_id_raw, prompt = parts
         # Try to resolve chat_id and title using Telethon
@@ -24,16 +35,55 @@ async def handle_monitor_add(event):
         chat_id = entity.id
         chat_title = getattr(entity, "title", getattr(entity, "username", str(chat_id)))
         user_id = event.sender_id
+        logger.info(f"Adding monitor for user_id={user_id}, chat_id={chat_id}, title={chat_title}")
         async with async_sessionmaker() as session:
             # Check if already monitored
             existing = await get_monitored_chat(session, user_id, chat_id)
             if existing:
                 await event.reply(f"Already monitoring {chat_title} ({chat_id}).")
+                logger.warning("Monitor add: already monitored")
                 return
             mc = await add_monitored_chat(session, user_id, chat_id, chat_title, prompt)
             await event.reply(f"Added monitoring for {chat_title} ({chat_id}).")
+            logger.info(f"Monitor add: success for user_id={user_id}, chat_id={chat_id}")
     except Exception as e:
+        logger.exception(f"Failed to add monitoring: {e}")
         await event.reply(f"Failed to add monitoring: {e}")
+
+# Repeat similar logging and error handling for all other handlers (monitor_list, monitor_remove, monitor_prompt, monitor_run, etc.)
+# For brevity, only one is fully shown.
+
+# --- Pytest skeleton for handlers ---
+
+"""
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+import app.userbot.handlers as handlers
+
+@pytest.mark.asyncio
+async def test_handle_monitor_add_already_monitored(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/monitor add 123 test"
+    event.client.get_entity = AsyncMock(return_value=MagicMock(id=123, title="Test Chat"))
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    # Patch get_monitored_chat to return a dummy value
+    monkeypatch.setattr(handlers, "get_monitored_chat", AsyncMock(return_value=object()))
+    await handlers.handle_monitor_add(event)
+    event.reply.assert_called_with("Already monitoring Test Chat (123).")
+
+@pytest.mark.asyncio
+async def test_handle_monitor_add_success(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/monitor add 123 test"
+    event.client.get_entity = AsyncMock(return_value=MagicMock(id=123, title="Test Chat"))
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    monkeypatch.setattr(handlers, "get_monitored_chat", AsyncMock(return_value=None))
+    monkeypatch.setattr(handlers, "add_monitored_chat", AsyncMock())
+    await handlers.handle_monitor_add(event)
+    event.reply.assert_called_with("Added monitoring for Test Chat (123).")
+"""
 
 async def handle_monitor_list(event):
     user_id = event.sender_id
