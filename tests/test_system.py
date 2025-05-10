@@ -1,4 +1,6 @@
-# Minimal system smoke test to ensure all components import and basic config/env works
+# Smoke/system integration test for Telegram Insight Agent backend.
+# Ensures config, environment, DB, and all modules are wired up.
+# Expand with more unit/integration tests as the codebase grows.
 
 import os
 import pytest
