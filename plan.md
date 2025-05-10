@@ -91,8 +91,17 @@
 5.  `[ ]` Logging (`app/logging_config.py`).
 6.  `[ ]` Database (`app/shared/db_models.py`, `app/shared/db_crud.py`):
     *   Define `MonitoredChat` SQLAlchemy model.
-    *   Implement basic async CRUD functions for `MonitoredChat` (add, get, list, update, delete).
+    *   Define `UserSettings` SQLAlchemy model (for per-user default prompt).
+    *   Implement basic async CRUD functions for `MonitoredChat` (add, get, list, update, delete) and for `UserSettings` (set/get default prompt).
     *   SQLAlchemy async engine setup in `app/shared/db_models.py` or a `database.py`.
+    *   **If using Supabase dashboard for manual schema, create `user_settings` table with:**  
+        ```sql
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT UNIQUE NOT NULL,
+            default_prompt TEXT
+        );
+        ```
 7.  `[ ]` Redis Client & Queue (`app/shared/redis_client.py`).
 8.  `[ ]` Telethon Client Helper (`app/userbot/client.py`).
 9.  `[ ]` `tdl` Executor Stub (`app/worker/tdl_executor.py`): Define `async def execute_tdl_command(args: list[str], timeout_sec: int = 60) -> dict: raise NotImplementedError`.
@@ -106,7 +115,7 @@
 13. **[ ] `fly.toml`:** Define `userbot`, `rqworker`, `rqscheduler` services. Define Redis app (or use external). Persistent volume `/data` mounted to ALL Python services. Map secrets. Set start commands.
 14. **[ ] Initial Tests:** Config, Redis client, DB CRUD (mock DB session), basic `tdl_executor` (mock `subprocess`).
 15. **[ ] Manual/Deployment Test:**
-    *   Deploy to Fly.io. Create tables in Supabase.
+    *   Deploy to Fly.io. Create tables in Supabase (ensure `user_settings` table exists, see SQL above).
     *   `fly ssh console -s userbot` (or process group for userbot):
         *   Run `tdl login` *once* interactively. Ensure `TDL_CONFIG_DIR` is used.
         *   Run `run_userbot.py` *once* interactively for Telethon auth. Ensure `TELEGRAM_SESSION_PATH` is used.
