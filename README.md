@@ -24,3 +24,13 @@ This will create all tables defined in the ORM.
 Do this before starting the userbot, worker, or scheduler services.
 
 ---
+
+### 7. Testing
+
+- After completing setup and before first use, you can verify your installation with:
+    ```
+    pytest
+    ```
+- This will run system smoke tests and any unit tests to confirm your environment, config, and database connectivity are correct.
+
+---
