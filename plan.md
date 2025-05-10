@@ -94,14 +94,7 @@
     *   Define `UserSettings` SQLAlchemy model (for per-user default prompt).
     *   Implement basic async CRUD functions for `MonitoredChat` (add, get, list, update, delete) and for `UserSettings` (set/get default prompt).
     *   SQLAlchemy async engine setup in `app/shared/db_models.py` or a `database.py`.
-    *   **If using Supabase dashboard for manual schema, create `user_settings` table with:**  
-        ```sql
-        CREATE TABLE IF NOT EXISTS user_settings (
-            id BIGSERIAL PRIMARY KEY,
-            user_id BIGINT UNIQUE NOT NULL,
-            default_prompt TEXT
-        );
-        ```
+    *   **If using Supabase dashboard for manual schema, create required tables by running [`app/shared/init_tables.sql`](app/shared/init_tables.sql) in the SQL editor.**
 7.  `[ ]` Redis Client & Queue (`app/shared/redis_client.py`).
 8.  `[ ]` Telethon Client Helper (`app/userbot/client.py`).
 9.  `[ ]` `tdl` Executor Stub (`app/worker/tdl_executor.py`): Define `async def execute_tdl_command(args: list[str], timeout_sec: int = 60) -> dict: raise NotImplementedError`.
