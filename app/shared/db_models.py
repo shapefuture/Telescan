@@ -19,3 +19,13 @@ class MonitoredChat(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 # Engine/session setup will be in a separate database.py
+
+from sqlalchemy import UniqueConstraint
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_user_settings_user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True, unique=True)
+    default_prompt: Mapped[str] = mapped_column(Text, nullable=True)
