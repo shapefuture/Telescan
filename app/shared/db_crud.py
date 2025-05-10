@@ -57,3 +57,38 @@ async def update_monitored_chat_prompt(session: AsyncSession, user_id: int, chat
     result = await session.execute(stmt)
     await session.commit()
     return result.rowcount
+
+async def set_chat_active(session: AsyncSession, user_id: int, chat_id: int, is_active: bool) -> int:
+    stmt = (
+        update(MonitoredChat)
+        .where(MonitoredChat.user_id == user_id, MonitoredChat.chat_id == chat_id)
+        .values(is_active=is_active)
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+    return result.rowcount
+
+async def get_latest_run_status(session: AsyncSession, user_id: int) -> list:
+    # Dummy: Return last processed_message_id for each chat
+    stmt = select(MonitoredChat.chat_id, MonitoredChat.chat_title, MonitoredChat.last_processed_message_id).where(
+        MonitoredChat.user_id == user_id
+    )
+    result = await session.execute(stmt)
+    return result.all()
+
+async def set_default_prompt(session: AsyncSession, user_id: int, prompt: str) -> None:
+    # Store a user's default prompt in a "user_settings" table (must exist). For demo, use upsert logic.
+    await session.execute(
+        "INSERT INTO user_settings (user_id, default_prompt) VALUES (:user_id, :prompt) "
+        "ON CONFLICT (user_id) DO UPDATE SET default_prompt = :prompt",
+        {"user_id": user_id, "prompt": prompt},
+    )
+    await session.commit()
+
+async def get_default_prompt(session: AsyncSession, user_id: int) -> str | None:
+    result = await session.execute(
+        "SELECT default_prompt FROM user_settings WHERE user_id = :user_id",
+        {"user_id": user_id}
+    )
+    row = result.first()
+    return row[0] if row else None
