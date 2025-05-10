@@ -66,12 +66,16 @@ async def handle_monitor_prompt(event):
         if len(parts) < 4:
             await event.reply("Usage: /monitor prompt <chat_id> <new_prompt>")
             return
-        _, _, chat_id, new_prompt = parts
-        chat_id = int(chat_id)
+        _, _, chat_id_raw, new_prompt = parts
+        entity = await event.client.get_entity(chat_id_raw)
+        chat_id = entity.id
         user_id = event.sender_id
         async with async_sessionmaker() as session:
             rc = await update_monitored_chat_prompt(session, user_id, chat_id, new_prompt)
-            await event.reply(f"Updated prompt for chat {chat_id}.")
+            if rc:
+                await event.reply(f"Updated prompt for chat {chat_id}.")
+            else:
+                await event.reply(f"No such monitored chat to update.")
     except Exception as e:
         await event.reply(f"Failed to update prompt: {e}")
 

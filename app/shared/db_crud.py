@@ -46,7 +46,7 @@ async def remove_monitored_chat(session: AsyncSession, user_id: int, chat_id: in
     )
     result = await session.execute(stmt)
     await session.commit()
-    return result.rowcount
+    return result.rowcount if hasattr(result, "rowcount") else (result.rowcount() if callable(result.rowcount) else 0)
 
 async def update_monitored_chat_prompt(session: AsyncSession, user_id: int, chat_id: int, new_prompt: str) -> int:
     stmt = (

@@ -8,11 +8,14 @@ async def get_llm_summary(history_text: str, prompt: str, max_tokens: int = 2048
     url = getattr(settings, "LLM_ENDPOINT_URL", None) or "https://api.openai.com/v1/chat/completions"
     api_key = settings.LLM_API_KEY
     # For OpenAI-compatible APIs
+    # Truncate history if exceeds model context
+    max_chars = 8000
+    truncated_history = history_text[-max_chars:] if len(history_text) > max_chars else history_text
     payload = {
         "model": getattr(settings, "LLM_MODEL_NAME", "gpt-3.5-turbo"),
         "messages": [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": history_text[:8000]}  # Truncate if needed
+            {"role": "user", "content": truncated_history}
         ],
         "max_tokens": max_tokens,
         "temperature": 0.3
@@ -25,5 +28,4 @@ async def get_llm_summary(history_text: str, prompt: str, max_tokens: int = 2048
         response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
-        # OpenAI format: choices[0].message.content
         return data["choices"][0]["message"]["content"]
