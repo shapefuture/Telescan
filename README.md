@@ -1,48 +1,36 @@
-# tdl
+# Telegram Userbot Extractor – Setup Instructions
 
-<img align="right" src="docs/assets/img/logo.png" height="280" alt="">
+## Database Setup (Supabase/Postgres)
 
-> 📥 Telegram Downloader, but more than a downloader
+**Required tables:**  
+- `monitored_chats`  
+- `user_settings`
 
-English | <a href="README_zh.md">简体中文</a>
+Before running the backend services for the first time, you must ensure the required tables exist in your Supabase/Postgres instance.
 
-<p>
-<img src="https://img.shields.io/github/go-mod/go-version/iyear/tdl?style=flat-square" alt="">
-<img src="https://img.shields.io/github/license/iyear/tdl?style=flat-square" alt="">
-<img src="https://img.shields.io/github/actions/workflow/status/iyear/tdl/master.yml?branch=master&amp;style=flat-square" alt="">
-<img src="https://img.shields.io/github/v/release/iyear/tdl?color=red&amp;style=flat-square" alt="">
-<img src="https://img.shields.io/github/downloads/iyear/tdl/total?style=flat-square" alt="">
-</p>
+**Option 1: Manual (Supabase Dashboard)**  
+1. Open the Supabase dashboard for your project.
+2. Go to the SQL Editor.
+3. Copy and run the contents of [`app/shared/init_tables.sql`](app/shared/init_tables.sql).
 
-#### Features:
-- Single file start-up
-- Low resource usage
-- Take up all your bandwidth
-- Faster than official clients
-- Download files from (protected) chats
-- Forward messages with automatic fallback and message routing
-- Upload files to Telegram
-- Export messages/members/subscribers to JSON
+**Option 2: Automated (Python Script)**  
+If you have direct Postgres access (not just Supabase), you can run:
+```bash
+python app/shared/init_db.py
+```
+This will create all tables defined in the ORM.
 
-## Preview
+**IMPORTANT:**  
+Do this before starting the userbot, worker, or scheduler services.
 
-It reaches my proxy's speed limit, and the **speed depends on whether you are a premium**
+---
 
-![](docs/assets/img/preview.gif)
+### 7. Testing
 
-## Documentation
+- After completing setup and before first use, you can verify your installation with:
+    ```
+    pytest
+    ```
+- This will run system smoke tests and any unit tests to confirm your environment, config, and database connectivity are correct.
 
-Please refer to the [documentation](https://docs.iyear.me/tdl/).
-
-## Sponsors
-
-![](https://raw.githubusercontent.com/iyear/sponsor/master/sponsors.svg)
-
-## Contributors
-<a href="https://github.com/iyear/tdl/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=iyear/tdl&max=750&columns=20" alt="contributors"/>
-</a>
-
-## LICENSE
-
-AGPL-3.0 License
+---

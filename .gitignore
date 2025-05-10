@@ -1,8 +1,28 @@
-.idea
-log
-.tdl
-.vscode
-downloads
-*.exe
-tdl
-.hugo_build.lock
+# Python
+__pycache__/
+*.pyc
+
+# Environment and secrets
+.env
+.env.*
+*.session
+
+# tdl/telethon output and temp data
+/data/
+tdl_output/
+*.json
+*.txt
+
+# SQLite/test DBs
+*.db
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/project files
+.vscode/
+.idea/

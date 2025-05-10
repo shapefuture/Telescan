@@ -1,0 +1,11 @@
+# Core dependencies for the backend
+asyncpg
+sqlalchemy[asyncio]
+pydantic
+telethon
+redis
+rq
+httpx
+python-dotenv
+pytest
+pytest-asyncio
