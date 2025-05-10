@@ -52,6 +52,134 @@ async def handle_monitor_add(event: NewMessage.Event) -> None:
 
 # ... other handlers above ...
 
+from app.shared.db_crud import set_chat_active
+
+async def handle_pause(event: Any) -> None:
+    """
+    Handle the /pause <chat_id> command to pause monitoring for a chat.
+    """
+    logger.info(f"handle_pause called: raw_text={getattr(event, 'raw_text', None)!r}")
+    try:
+        parts = event.raw_text.strip().split(maxsplit=1)
+        if len(parts) != 2:
+            await event.reply("Usage: /pause <chat_id>")
+            logger.warning("Pause: missing chat_id")
+            return
+        chat_id_raw = parts[1]
+        entity = await event.client.get_entity(chat_id_raw)
+        chat_id = entity.id
+        user_id = event.sender_id
+        async with async_sessionmaker() as session:
+            affected = await set_chat_active(session, user_id, chat_id, False)
+        if affected:
+            await event.reply(f"Monitoring paused for chat {chat_id}.")
+            logger.info(f"Paused monitoring for chat {chat_id}, user {user_id}")
+        else:
+            await event.reply("No such monitored chat found.")
+            logger.warning(f"Pause: chat not found {chat_id}, user {user_id}")
+    except Exception as e:
+        logger.exception(f"Failed to process /pause: {e}")
+        await event.reply(f"Failed to process /pause: {e}")
+
+async def handle_resume(event: Any) -> None:
+    """
+    Handle the /resume <chat_id> command to resume monitoring for a chat.
+    """
+    logger.info(f"handle_resume called: raw_text={getattr(event, 'raw_text', None)!r}")
+    try:
+        parts = event.raw_text.strip().split(maxsplit=1)
+        if len(parts) != 2:
+            await event.reply("Usage: /resume <chat_id>")
+            logger.warning("Resume: missing chat_id")
+            return
+        chat_id_raw = parts[1]
+        entity = await event.client.get_entity(chat_id_raw)
+        chat_id = entity.id
+        user_id = event.sender_id
+        async with async_sessionmaker() as session:
+            affected = await set_chat_active(session, user_id, chat_id, True)
+        if affected:
+            await event.reply(f"Monitoring resumed for chat {chat_id}.")
+            logger.info(f"Resumed monitoring for chat {chat_id}, user {user_id}")
+        else:
+            await event.reply("No such monitored chat found.")
+            logger.warning(f"Resume: chat not found {chat_id}, user {user_id}")
+    except Exception as e:
+        logger.exception(f"Failed to process /resume: {e}")
+        await event.reply(f"Failed to process /resume: {e}")
+
+async def handle_cancel(event: Any) -> None:
+    """
+    Handle the /cancel <request_id> command to cancel a running job.
+    """
+    logger.info(f"handle_cancel called: raw_text={getattr(event, 'raw_text', None)!r}")
+    try:
+        parts = event.raw_text.strip().split(maxsplit=1)
+        if len(parts) != 2:
+            await event.reply("Usage: /cancel <request_id>")
+            logger.warning("Cancel: missing request_id")
+            return
+        request_id = parts[1]
+        # Requires RQ job management. Here we simulate job lookup and cancel.
+        from rq import Worker, Queue
+        from app.shared.redis_client import get_redis_sync
+        queue = Queue(connection=get_redis_sync())
+        job = queue.fetch_job(request_id)
+        if job:
+            job.cancel()
+            await event.reply(f"Cancelled job {request_id}.")
+            logger.info(f"Cancelled job {request_id}")
+        else:
+            await event.reply("No such job found.")
+            logger.warning(f"Cancel: job not found {request_id}")
+    except Exception as e:
+        logger.exception(f"Failed to process /cancel: {e}")
+        await event.reply(f"Failed to process /cancel: {e}")
+
+"""
+# Pytest skeleton
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from app.userbot import handlers
+
+@pytest.mark.asyncio
+async def test_handle_pause_success(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/pause 123"
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    event.client.get_entity = AsyncMock(return_value=MagicMock(id=123))
+    monkeypatch.setattr(handlers, "set_chat_active", AsyncMock(return_value=1))
+    await handlers.handle_pause(event)
+    event.reply.assert_called_with("Monitoring paused for chat 123.")
+
+@pytest.mark.asyncio
+async def test_handle_resume_success(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/resume 123"
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    event.client.get_entity = AsyncMock(return_value=MagicMock(id=123))
+    monkeypatch.setattr(handlers, "set_chat_active", AsyncMock(return_value=1))
+    await handlers.handle_resume(event)
+    event.reply.assert_called_with("Monitoring resumed for chat 123.")
+
+@pytest.mark.asyncio
+async def test_handle_cancel_success(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/cancel reqid"
+    event.reply = AsyncMock()
+    fake_job = MagicMock()
+    fake_job.cancel = MagicMock()
+    fake_queue = MagicMock()
+    fake_queue.fetch_job = MagicMock(return_value=fake_job)
+    monkeypatch.setattr(handlers, "get_redis_sync", lambda: None)
+    monkeypatch.setattr(handlers, "Queue", lambda connection=None: fake_queue)
+    await handlers.handle_cancel(event)
+    event.reply.assert_called_with("Cancelled job reqid.")
+"""
+
 from app.shared.db_crud import get_recent_jobs_for_user
 
 async def handle_status(event: Any) -> None:
