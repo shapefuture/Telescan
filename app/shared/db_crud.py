@@ -1,100 +1,54 @@
-# CRUD operations for Supabase/Postgres via SQLAlchemy
+from datetime import datetime
 
-from sqlalchemy import select, update, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.shared.db_models import MonitoredChat, UserSettings
-from sqlalchemy.exc import IntegrityError
+# ... previous code ...
 
-async def add_monitored_chat(
+async def create_job_status(
     session: AsyncSession,
+    request_id: str,
     user_id: int,
     chat_id: int,
     chat_title: str,
-    prompt: str,
-    last_processed_message_id: int = None,
-    is_active: bool = True,
-) -> MonitoredChat:
-    mc = MonitoredChat(
+    status: str,
+    detail: str | None = None,
+) -> None:
+    from app.shared.db_models import JobStatus
+    job = JobStatus(
+        request_id=request_id,
         user_id=user_id,
         chat_id=chat_id,
         chat_title=chat_title,
-        prompt=prompt,
-        last_processed_message_id=last_processed_message_id,
-        is_active=is_active,
+        status=status,
+        detail=detail,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
     )
-    session.add(mc)
+    session.add(job)
     await session.commit()
-    await session.refresh(mc)
-    return mc
 
-async def get_monitored_chat(session: AsyncSession, user_id: int, chat_id: int) -> MonitoredChat | None:
-    stmt = select(MonitoredChat).where(
-        MonitoredChat.user_id == user_id,
-        MonitoredChat.chat_id == chat_id,
-    )
+async def update_job_status(
+    session: AsyncSession,
+    request_id: str,
+    status: str,
+    detail: str | None = None,
+) -> None:
+    from app.shared.db_models import JobStatus
+    stmt = select(JobStatus).where(JobStatus.request_id == request_id)
+    result = await session.execute(stmt)
+    job = result.scalar_one_or_none()
+    if job:
+        job.status = status
+        job.detail = detail
+        job.updated_at = datetime.utcnow()
+        await session.commit()
+
+async def get_job_status(session: AsyncSession, request_id: str):
+    from app.shared.db_models import JobStatus
+    stmt = select(JobStatus).where(JobStatus.request_id == request_id)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
-async def get_all_monitored_chats_for_user(session: AsyncSession, user_id: int) -> list[MonitoredChat]:
-    stmt = select(MonitoredChat).where(MonitoredChat.user_id == user_id)
+async def get_recent_jobs_for_user(session: AsyncSession, user_id: int, limit: int = 10):
+    from app.shared.db_models import JobStatus
+    stmt = select(JobStatus).where(JobStatus.user_id == user_id).order_by(JobStatus.created_at.desc()).limit(limit)
     result = await session.execute(stmt)
     return result.scalars().all()
-
-async def remove_monitored_chat(session: AsyncSession, user_id: int, chat_id: int) -> int:
-    stmt = delete(MonitoredChat).where(
-        MonitoredChat.user_id == user_id,
-        MonitoredChat.chat_id == chat_id,
-    )
-    result = await session.execute(stmt)
-    await session.commit()
-    return result.rowcount if hasattr(result, "rowcount") else (result.rowcount() if callable(result.rowcount) else 0)
-
-async def update_monitored_chat_prompt(session: AsyncSession, user_id: int, chat_id: int, new_prompt: str) -> int:
-    stmt = (
-        update(MonitoredChat)
-        .where(MonitoredChat.user_id == user_id, MonitoredChat.chat_id == chat_id)
-        .values(prompt=new_prompt)
-    )
-    result = await session.execute(stmt)
-    await session.commit()
-    return result.rowcount
-
-async def set_chat_active(session: AsyncSession, user_id: int, chat_id: int, is_active: bool) -> int:
-    stmt = (
-        update(MonitoredChat)
-        .where(MonitoredChat.user_id == user_id, MonitoredChat.chat_id == chat_id)
-        .values(is_active=is_active)
-    )
-    result = await session.execute(stmt)
-    await session.commit()
-    return result.rowcount
-
-async def get_latest_run_status(session: AsyncSession, user_id: int) -> list:
-    # Dummy: Return last processed_message_id for each chat
-    stmt = select(MonitoredChat.chat_id, MonitoredChat.chat_title, MonitoredChat.last_processed_message_id).where(
-        MonitoredChat.user_id == user_id
-    )
-    result = await session.execute(stmt)
-    return result.all()
-
-async def set_default_prompt(session: AsyncSession, user_id: int, prompt: str) -> None:
-    # Robust upsert for user_settings
-    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
-    result = await session.execute(stmt)
-    found = result.scalar_one_or_none()
-    if found:
-        found.default_prompt = prompt
-    else:
-        us = UserSettings(user_id=user_id, default_prompt=prompt)
-        session.add(us)
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        raise
-
-async def get_default_prompt(session: AsyncSession, user_id: int) -> str | None:
-    stmt = select(UserSettings.default_prompt).where(UserSettings.user_id == user_id)
-    result = await session.execute(stmt)
-    row = result.first()
-    return row[0] if row else None
