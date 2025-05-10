@@ -1,9 +1,17 @@
 # For managing temporary state (multi-step commands) via Redis
 
-async def store_status_message(request_id, message_id):
-    # TODO: Store mapping in Redis
-    pass
+from app.shared.redis_client import get_redis_async
 
-async def get_status_message(request_id):
-    # TODO: Retrieve mapping from Redis
-    pass
+async def store_status_message(request_id: str, message_id: int):
+    redis = get_redis_async()
+    await redis.set(f"status_msg:{request_id}", message_id)
+
+async def get_status_message(request_id: str) -> int | None:
+    redis = get_redis_async()
+    val = await redis.get(f"status_msg:{request_id}")
+    if val is not None:
+        try:
+            return int(val)
+        except Exception:
+            return None
+    return None
