@@ -2,7 +2,8 @@
 
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.shared.db_models import MonitoredChat
+from app.shared.db_models import MonitoredChat, UserSettings
+from sqlalchemy.exc import IntegrityError
 
 async def add_monitored_chat(
     session: AsyncSession,
@@ -77,18 +78,23 @@ async def get_latest_run_status(session: AsyncSession, user_id: int) -> list:
     return result.all()
 
 async def set_default_prompt(session: AsyncSession, user_id: int, prompt: str) -> None:
-    # Store a user's default prompt in a "user_settings" table (must exist). For demo, use upsert logic.
-    await session.execute(
-        "INSERT INTO user_settings (user_id, default_prompt) VALUES (:user_id, :prompt) "
-        "ON CONFLICT (user_id) DO UPDATE SET default_prompt = :prompt",
-        {"user_id": user_id, "prompt": prompt},
-    )
-    await session.commit()
+    # Robust upsert for user_settings
+    stmt = select(UserSettings).where(UserSettings.user_id == user_id)
+    result = await session.execute(stmt)
+    found = result.scalar_one_or_none()
+    if found:
+        found.default_prompt = prompt
+    else:
+        us = UserSettings(user_id=user_id, default_prompt=prompt)
+        session.add(us)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise
 
 async def get_default_prompt(session: AsyncSession, user_id: int) -> str | None:
-    result = await session.execute(
-        "SELECT default_prompt FROM user_settings WHERE user_id = :user_id",
-        {"user_id": user_id}
-    )
+    stmt = select(UserSettings.default_prompt).where(UserSettings.user_id == user_id)
+    result = await session.execute(stmt)
     row = result.first()
     return row[0] if row else None
