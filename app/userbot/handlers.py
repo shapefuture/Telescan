@@ -50,8 +50,91 @@ async def handle_monitor_add(event: NewMessage.Event) -> None:
         logger.exception(f"Failed to add monitoring: {e}")
         await event.reply(f"Failed to add monitoring: {e}")
 
-# Repeat similar logging and error handling for all other handlers (monitor_list, monitor_remove, monitor_prompt, monitor_run, etc.)
-# For brevity, only one is fully shown.
+# ... other handlers above ...
+
+import logging
+from typing import Any
+from app.shared.database import async_sessionmaker
+from app.shared.db_crud import set_default_prompt, get_default_prompt
+
+logger = logging.getLogger("telegram_insight_agent.userbot.handlers")
+
+async def handle_settings(event: Any) -> None:
+    """
+    Handle the /settings command for getting/setting user default prompt.
+
+    Usage:
+        /settings               -- show current default prompt
+        /settings set <prompt>  -- set new default prompt
+    """
+    logger.info(f"handle_settings called: raw_text={getattr(event, 'raw_text', None)!r}")
+    try:
+        parts = event.raw_text.strip().split(maxsplit=2)
+        user_id = event.sender_id
+        if len(parts) == 1 or (len(parts) == 2 and parts[1] == "show"):
+            # Show current default prompt
+            async with async_sessionmaker() as session:
+                prompt = await get_default_prompt(session, user_id)
+            msg = f"Your default LLM prompt is:\n\n<code>{prompt or 'Not set'}</code>"
+            await event.reply(msg)
+            logger.info(f"Replied with current prompt for user_id={user_id}")
+        elif len(parts) >= 3 and parts[1] == "set":
+            new_prompt = parts[2]
+            async with async_sessionmaker() as session:
+                await set_default_prompt(session, user_id, new_prompt)
+            await event.reply(f"Default prompt updated to:\n\n<code>{new_prompt}</code>")
+            logger.info(f"Default prompt updated for user_id={user_id}")
+        else:
+            msg = ("/settings — show your default prompt\n"
+                   "/settings set <prompt> — set your default prompt")
+            await event.reply(msg)
+            logger.warning("Settings: invalid usage")
+    except Exception as e:
+        logger.exception(f"Failed to process /settings: {e}")
+        await event.reply(f"Failed to process /settings: {e}")
+
+# Register this handler in client.py as:
+# @client.on(events.NewMessage(pattern=r"^/settings"))
+# async def _(event): await handlers.handle_settings(event)
+
+"""
+# Pytest skeleton
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from app.userbot import handlers
+
+@pytest.mark.asyncio
+async def test_handle_settings_show(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/settings"
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    monkeypatch.setattr(handlers, "get_default_prompt", AsyncMock(return_value="abc"))
+    monkeypatch.setattr(handlers, "set_default_prompt", AsyncMock())
+    await handlers.handle_settings(event)
+    event.reply.assert_called()
+    assert "abc" in event.reply.call_args[0][0]
+
+@pytest.mark.asyncio
+async def test_handle_settings_set(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/settings set new"
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    monkeypatch.setattr(handlers, "set_default_prompt", AsyncMock())
+    await handlers.handle_settings(event)
+    event.reply.assert_called_with("Default prompt updated to:\n\n<code>new</code>")
+
+@pytest.mark.asyncio
+async def test_handle_settings_invalid(monkeypatch):
+    event = MagicMock()
+    event.raw_text = "/settings foo"
+    event.sender_id = 42
+    event.reply = AsyncMock()
+    await handlers.handle_settings(event)
+    event.reply.assert_called()
+"""
 
 # --- Pytest skeleton for handlers ---
 
