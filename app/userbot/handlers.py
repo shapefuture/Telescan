@@ -46,12 +46,16 @@ async def handle_monitor_remove(event):
         if len(parts) < 3:
             await event.reply("Usage: /monitor remove <chat_id>")
             return
-        _, _, chat_id = parts
-        chat_id = int(chat_id)
+        _, _, chat_id_raw = parts
+        entity = await event.client.get_entity(chat_id_raw)
+        chat_id = entity.id
         user_id = event.sender_id
         async with async_sessionmaker() as session:
             rc = await remove_monitored_chat(session, user_id, chat_id)
-            await event.reply(f"Removed monitoring for chat {chat_id}.")
+            if rc:
+                await event.reply(f"Removed monitoring for chat {chat_id}.")
+            else:
+                await event.reply(f"No such monitored chat found for removal.")
     except Exception as e:
         await event.reply(f"Failed to remove monitoring: {e}")
 

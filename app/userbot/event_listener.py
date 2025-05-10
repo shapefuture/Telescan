@@ -23,7 +23,10 @@ async def listen_for_job_events(client, settings):
                 await handle_insight_job_completion(client, request_id, detail, failed=False)
             elif status == "FAILED":
                 await handle_insight_job_completion(client, request_id, detail, failed=True)
-            # Optionally update status messages for PROGRESS/other
+            elif status in ("TDL_HISTORY_EXPORT", "TDL_PARTICIPANTS_EXPORT", "CALLING_LLM"):
+                await update_manual_run_status_message(client, request_id, status)
+            elif status == "TDL_PARTICIPANTS_EXPORT_FAILED":
+                await update_manual_run_status_message(client, request_id, "Participants export failed")
 
 async def handle_insight_job_completion(client, request_id, detail, failed=False):
     # detail from worker: should include user_id, chat_id, chat_title, summary_path, participants_path, error, etc.
