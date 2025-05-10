@@ -7,3 +7,5 @@ redis
 rq
 httpx
 python-dotenv
+pytest
+pytest-asyncio
