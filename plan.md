@@ -1,472 +1,230 @@
-# Project: Telegram Extractor & Summarizer (td with the cleaned history and user prompt.
-    *   It will save cleaned history text, participant text, and LLl + Node.js/TypeScript) (v6.0)
+# Project: Cloud-Hosted Telegram Insight Agent (v8.0 - tdl-Powered Userbot)
 
-**Goal:** Develop a user-friendly command-line applicationM summary text to organized `.txt` files.
-    *   It will generate a beautiful `report.html` using Node.js/TypeScript that orchestrates the `tdl` (Go-based Telegram CLI tool) to extract chat history/participants from a user's Telegram account. The application will then process this data, optionally call an LLM that links to these `.txt` files.
+**Goal:** Develop a secure, robust, scalable userbot service hosted on Fly.io, using Supabase for data persistence. The service, acting on behalf of the user's Telegram account, interacts via Telegram commands/buttons. It allows the user to manage monitored chats, provide prompts, triggers background extraction (via `tdl` CLI) and LLM processing via RQ/Redis, provides real-time progress updates via Telegram, and delivers insights/results as messages/files back in Telegram.
 
-**`implementation_plan.md` (v6.0 - ` API for summarization based on a user prompt, and generate a polished HTML report for viewing results and accessing cleaned data files.
+**Architecture:**
+1.  **Telegram "Bot" Interface (User Account acting via Telethon):** This is the `userbot_service.py` running on Fly.io. It listens to your own incoming messages/callbacks.
+2.  **Telegram Engine:** `tdl` executable (installed in the Fly.io Docker image).
+3.  **Task Orchestration (within Userbot Service & RQ Tasks):**
+    *   Userbot service determines *what* `tdl` commands to run.
+    *   RQ tasks *execute* these `tdl` commands as subprocesses.
+4.  **Task Queue:** RQ + Redis (Redis as Fly App or external).
+5.  **RQ Workers (Fly.io):** Python processes that execute the RQ tasks (which in turn run `tdl`).
+6.  **Database:** Supabase PostgreSQL (for monitored chats, job status, user settings).
+7.  **Persistent Storage (Fly Volume):** For `tdl` config/session, intermediate `tdl` JSON output, final cleaned TXT files before upload.
+8.  **LLM Interaction:** `httpx` from RQ worker.
 
-**tdl` Engine + Node.js/TypeScript Orchestrator)**
+**User Flow (Simplified):**
+1.  **(Dev Setup):** Deploy to Fly.io. Run `tdl login` *once* via `fly ssh console` in the `userbot_service` container to authenticate `tdl`. Run `run_userbot.py` interactively *once* in the `userbot_service` container for Telethon's initial auth (creating its `.session` file).
+2.  **(User Interaction - All via Telegram):**
+    a.  User sends `/monitor add @channelname daily Summarize key topics` to their own "Saved Messages" (or a dedicated control chat).
+    b.  Userbot Service (`userbot_app.py` via Telethon) receives this, parses it, saves to Supabase.
+    c.  Scheduled job (or manual `/monitor run @channelname`) triggers an RQ task.
+    d.  RQ Worker task:
+        i.  Retrieves info from Supabase.
+        ii. Executes `tdl chat export -c @channelname --min-id <last_id> -o ...json` as subprocess.
+        iii. Executes `tdl chat users ...` (if group).
+        iv. Parses JSONs, cleans text.
+        v.  Calls LLM API with text and prompt.
+        vi. Publishes "SUCCESS/FAILURE + summary/error" to Redis Pub/Sub.
+    e.  Userbot Service (listening to Pub/Sub): Receives event, formats insight, sends to user as Telegram message. Updates `last_processed_id` in Supabase.
 
-```markdown
-# Project: Telegram Data Orchestrator & Insight Reporter (v6.0 - tdl + Node.js/TS)
+**Technology Stack:** (Same as v5.2: Python, Telethon, RQ, Redis, Supabase/Postgres, `tdl`, `httpx`, Pydantic, etc.)
 
-**Goal:** Develop a robustArchitecture:**
-1.  **Telegram Engine:** `tdl` executable (user installs manually, authenticates via `tdl login command-line application using Node.js/TypeScript that orchestrates the `tdl` tool to extract Telegram chat data` once).
-2.  **Orchestrator & Report Generator:** Node.js/TypeScript CLI application.
+**Project Structure:** (Same as v5.2, `tdl_orchestrator.py` might be part of `worker/tasks.py` or a util)
 
-**User, processes this data, interacts with an LLM for insights based on a user prompt, saves all outputs, and generates a Interaction Flow:**
-1.  User installs `tdl` and `tdl login` once.
-2.  User polished HTML report for easy viewing.
-
-**Architecture:** `tdl` (Go CLI for Telegram Interaction) + Node. installs Node.js and the orchestrator app (e.g., via `npm install -g` or cloning repo + `npm install`).
-3.  User runs the orchestrator: `telegram-processor` (or `node dist/main.js`).
-4.  Orchestrator lists chats (by calling `tdl chat ls`).js/TypeScript Application (Orchestration, JSON Processing, Text Cleaning, LLM API Calls, File Saving, HTML Report Generation).
-
-**User Flow:**
-1.  User installs `tdl` and authenticates via `tdl login
-5.  Orchestrator prompts for chat selection and LLM prompt.
-6.  Orchestrator calls` (one-time).
-2.  User installs Node.js and the orchestrator application (e.g., `tdl chat export` and `tdl chat users` for selected chats.
-7.  Orchestr via `npm install -g` or by cloning repo + `npm install`).
-3.  User runs the orchestrator fromator processes JSON, cleans text, calls LLM API.
-8.  Orchestrator generates `report.html` their terminal: `telegram-reporter --chats "@channel1,group_id_123" --prompt "Summar and cleaned `.txt` files.
-9.  User opens `report.html` in browser.
-
-**Technology Stack:**
-*   **Telegram Engine:** `tdl` (Go binary)
-*   **Orchestrator:**ize key decisions." --output-dir ./my_reports`
-4.  The application calls `tdl` to Node.js (LTS version) with TypeScript
-*   **CLI Interaction (Orchestrator):** `inquirer` fetch data, processes it, calls LLM, saves text files, and generates `report.html` in the specified output directory.
-5.  User opens `report.html` in their browser.
-
-**Guiding Principles:** (for prompts), `chalk` (for colored console output), `commander` or `yargs` (for command-line arguments - optional if fully interactive).
-*   **Subprocess Execution:** Node.js `child_process`
-*   **User Experience:** Simple CLI invocation, clear console feedback, beautiful HTML report.
-*   **AI module (`exec`, `spawn`).
-*   **File System:** Node.js `fs` module (preferably `fs/ Development Ease:** Focus AI on TypeScript/Node.js for well-defined tasks (subprocess, JSON, HTTP, filepromises`).
-*   **HTTP Client (LLM):** `axios` or built-in `fetch` (Node.js I/O, HTML string gen). `tdl` handles Telegram complexity.
-*   **Robustness:** Solid 18+).
-*   **Configuration:** `.env` files using `dotenv` package.
-*   **Logging:** error handling for `tdl` calls, file operations, and API interactions.
-*   **Maintainability & Testability:** Clean `winston` or `pino` (for structured logging).
-*   **Testing:** Jest or Vitest, TypeScript code, type safety, unit tests.
-*   **Performance:** Node.js for efficient I/O and `ts-mock-imports`.
-*   **Linting/Formatting:** ESLint, Prettier.
-*   **Build:** TypeScript Compiler (`tsc`).
-*   **Packaging (Optional):** `pkg` or `nexe` to create a processing. `tdl` is performant.
-
-**Technology Stack:**
-*   **Telegram Engine:** `td single executable for the orchestrator.
-
-**Project Structure (Node.js/TypeScript Orchestrator):**
-
-/telegraml` (pre-built Go executable).
-*   **Orchestrator:** Node.js (v18+ recommended) with TypeScript.
-*   **CLI Argument Parsing:** `yargs` or `commander`.
-*   **Sub-ts-processor
-|-- package.json
-|-- tsconfig.json
-|-- .env                   # LLprocess Execution:** Node.js `child_process` module (`execFile` or `spawn`).
-*   **HTTP Client (M API Key, output paths
+/telegram-userbot-tdl
+|-- Dockerfile             # Installs Python, tdl, copies app
+|-- fly.toml
+|-- run_userbot.py         # Entry for Telethon userbot service
+|-- run_worker.py          # Entry for RQ worker service
+|-- run_scheduler.py       # Entry for RQ scheduler service
+|-- requirements.txt
+|-- config.py
+|-- .env
 |-- .gitignore
 |-- implementation_plan.md
-|-- /src
-|   |-- main.ts            # Main CLI entry point
-|   |-- config.ts          # Loadfor LLM):** `axios` or built-in `fetch` (Node.js 18+)./validate environment variables
-|   |-- tdl_orchestrator.ts # Functions to call `tdl`
-*   **File System:** Node.js `fs` module (preferably `fs/promises`).
-*   **HTML subprocesses
-|   |-- data_processor.ts  # Functions to parse JSON, clean text
-|   |-- Generation:** String templates or a lightweight template literal function. (Avoid heavy template engines to keep it simple for AI).
-*    llm_service.ts     # Functions to call LLM API
-|   |-- report_generator.ts# Functions to generate HTML report and TXT files
-|   |-- ui_prompts.ts      # In**Configuration:** `.env` file for API keys (`dotenv` package).
-*   **Logging:** A simple console logger (`quirer prompts for user interaction
-|   |-- utils.ts           # General utility functions (e.g., file helpersconsole.log`, `console.error`) or a lightweight library like `pino` or `winston` if, logging setup)
-|   |-- /types             # TypeScript type definitions
-|       |-- tdl_types more structure is needed.
-*   **Testing:** Jest or Vitest.
-*   **Linting/Formatting:** ESLint, Prettier.
-*   **Build (Optional):** `tsc` for TypeScript compilation, potentially.ts   # Types for `tdl` JSON output (messages, users)
-|       |-- app_types.ts   # Internal app types
-|-- /output                # Default directory for `tdl` JSON and generated TXT/HTML `pkg` or `nexe` to bundle into a single executable (adds complexity, might be a later step).
-
-**Project Structure:**
-
-/telegram-reporter-node
-|-- src/
-|   |-- index.ts             
-|   |-- /tdl_json_exports  # Raw JSON from `tdl`
-|   |--# Main application entry point
-|   |-- tdl_orchestrator.ts  # Functions to call t /cleaned_data      # Cleaned TXT files
-|   |-- report.html
-|-- /testsdl and parse output
-|   |-- text_cleaner.ts      # Text cleaning logic (regex)
-|
-|   |-- /__mocks__         # Mocks for external modules
-|   |-- tdl_orche   |-- llm_service.ts       # Functions to call LLM API
-|   |-- file_saverstrator.test.ts
-|   |-- data_processor.test.ts
-|   |-- ll.ts        # Functions to save processed data to .txt files
-|   |-- html_reporter.ts     # Functions to generate report.html
-|   |-- types.ts             # TypeScript interfaces/types
-|   m_service.test.ts
-|   |-- report_generator.test.ts
+|-- /app
+|   |-- __init__.py
+|   |-- userbot            # Telethon Userbot specific logic
+|   |   |-- client.py      # Telethon client init
+|   |   |-- handlers.py    # Command/Callback handlers
+|   |   |-- ui.py          # Keyboard builders, message formatters
+|   |   |-- state.py       # Manages temp interactive state (e.g., for multi-step commands) via Redis
+|   |   |-- event_listener.py # Listens to Redis Pub/Sub for job completions
+|   |   |-- results_sender.py # Sends final insights/files via Telethon
+|   |-- worker             # RQ Worker logic
+|   |   |-- __init__.py
+|   |   |-- tasks.py       # RQ task definitions (orchestrates tdl, calls LLM)
+|   |   |-- tdl_executor.py # NEW/Refined: Robustly executes tdl commands & parses output
+|   |   |-- text_cleaner.py # Text cleaning utilities
+|   |   |-- llm_service.py # LLM API interaction
+|   |-- shared             # Shared components
+|   |   |-- __init__.py
+|   |   |-- redis_client.py # Redis connection & RQ Queue setup
+|   |   |-- db_models.py   # SQLAlchemy models for Supabase
+|   |   |-- db_crud.py     # CRUD operations for Supabase
+|   |-- logging_config.py
+|-- /tests
+# ... (test structure mirrors app structure) ...
 
 ---
 **AI Implementation Best Practices Checklist (MANDATORY for each step):**
-*   **[ ] Code Style & Linting:** Enforce Prettier formatting, check with ESLint (with TypeScript plugins). Resolve ALL issues.
-*   **[ ]|-- config.ts            # Load and export config (API keys etc.)
-|-- tests/
-|    Typing:** Strict TypeScript. Use interfaces/types for all data structures, especially `tdl` output and LLM API responses.|-- tdl_orchestrator.test.ts
-|   |-- text_cleaner.test.ts
-|   |-- llm_service.test.ts
-|   |-- html_reporter.test.ts
-|
-*   **[ ] Modularity:** Adhere to structure. Small, focused functions/classes. Clear async/await usage-- .env                     # API Keys (LLM_API_KEY)
-|-- .gitignore
-|-- package.
-*   **[ ] Configuration (`src/config.ts`):** Load from `.env` using `dotenv.json
-|-- tsconfig.json
-|-- jest.config.js or vitest.config.ts #`. Validate critical configs. Export a typed config object.
-*   **[ ] Security:** Sanitize any user input If using these test runners
-|-- README.md
-|-- implementation_plan.md   # This file
-
- used in file paths or commands. Ensure API keys are loaded from env vars and not committed. Be careful with `child---
-**AI Implementation Best Practices Checklist (MANDATORY for each step):**
-*   **(All relevant general best practices apply: Style, Typing, Modularity, Config, Security, Error Handling, Logging, Testing, Docs, Dependencies_process.exec` (prefer `spawn` for better control over arguments and avoiding shell injection if command parts are dynamic)**
-*   **[ ] TypeScript First:** Use TypeScript for all custom code. Leverage strong typing.
-*   ** - though `tdl` commands are mostly static here).
-*   **[ ] Error Handling:** Use `try...catch` for subprocess execution, file I/O, API calls, JSON parsing. Log detailed errors. Provide user-friendly console[ ] Async/Await:** Use `async/await` for all I/O operations (`fs/promises`, `child messages. Define custom error classes if beneficial.
-*   **[ ] Logging (`src/utils.ts` - `_process` execution if wrapped, HTTP calls).
-*   **[ ] Subprocess Management:** Handle `tdl` execution carefully:
-    *   Use `execFile` or `spawn` from `child_process`.
-    *   setupLogging`):** Use `winston` or `pino`. Log key operations, errors, subprocess commands, and output. Include correlation IDs if processing multiple chats.
-*   **[ ] Testing:** Unit test all service/Capture `stdout` and `stderr` properly.
-    *   Check exit codes for errors.
-    *   Implement timeouts for `tdl` commands.
-    *   Ensure `tdl` is expected to be in the system PATHprocessor/generator functions. Mock `child_process` module for `tdl` calls. Mock `axios`/`fetch` for or provide a configurable path to it.
-*   **[ ] JSON Safety:** Validate structure of JSON received from `tdl` before accessing nested properties. Use try-catch for `JSON.parse()`.
-*   **[ ] File LLM calls. Mock `fs` for file operations. Test JSON parsing and text cleaning with sample data. Use Jest/Vitest with `ts-jest` or `ts-node`.
-*   **[ ] Documentation:** J Paths:** Use `path.join()` for constructing paths. Handle relative vs. absolute paths correctly. Ensure output directories areSDoc/TSDoc comments for all functions/classes. `README.md` for setup and usage.
-* created (`fs.mkdir(..., { recursive: true })`).
-*   **[ ] LLM API:** Secure   **[ ] Dependency Management:** Use `npm` or `yarn`. Keep `package.json` and `package-lock.json` committed.
-*   **[ ] Explicit Instructions:** For AI: "In `src/tdl_orchestrator.ts`, write an async function `exportChatHistory(chatIdOrName: string,ly handle API key. Implement robust error handling and timeouts for LLM calls. Handle LLM context window limits (trunc outputDir: string): Promise<string>` that executes `tdl chat export -c ${chatIdOrName} --all -o ${outputPath}` using `child_process.spawn`. It should return the path to the JSON file on success oration).
-*   **[ ] HTML Generation:** Use template literals or simple string concatenation. Embed CSS in `<style>` tags within the HTML for simplicity.
-*   **[ ] Explicit Instructions:** "Using Node.js `child_process. throw an error. Capture and log stdout/stderr."
+*   **(All previous best practices apply - Style, Typing, Modularity, Config, Security, Error Handling, Logging, Testing, Docs, Dependencies)**
+*   **[ ] `tdl` Execution:** All `tdl` calls within RQ tasks must be via a robust helper function in `app/worker/tdl_executor.py`. This helper must use `subprocess.run` or `subprocess.Popen` carefully, capture `stdout`/`stderr`, check exit codes, handle timeouts, and parse expected JSON output safely. Ensure `tdl` uses a persistent config directory (`--config /data/.tdl`).
+*   **[ ] Telethon as Controller:** The `userbot_app.py` is the user-facing controller. It parses Telegram messages, manages minimal interactive state (e.g., waiting for a follow-up message for a multi-part command) using Redis, updates the Supabase DB for persistent subscriptions, and enqueues jobs to RQ. It *does not* run `tdl` directly.
+*   **[ ] Clear API between Components:** Userbot enqueues task with all necessary data (`chat_id`, `prompt`, `last_message_id`). Worker task returns structured data (summary, error, file paths). Pub/Sub messages are structured (JSON).
+*   **[ ] Supabase CRUD:** All database interactions via `app/shared/db_crud.py` using SQLAlchemy async sessions.
 
 ---
 
-## Phase 1: Core Setup, Config, LoggingexecFile`, execute the `tdl` command `['chat', 'export', '-c', CHAT_ID,, Basic `tdl` Orchestration
+## Phase 1: Foundation, Config, DB, `tdl` Setup, Fly.io Base
 
-**Goal:** Set up the Node.js/TypeScript project, configure environment, '--all', '-o', outputJsonPath]`. Capture stdout/stderr. If exit code is not 0, throw logging, and implement basic functions to call `tdl chat ls` and `tdl chat export` as subprocesses. an error..." "Define a TypeScript interface `TdlMessage` based on the expected JSON structure of a single message from `td
+**Goal:** Set up project, robust config, Supabase DB models/CRUD, logging, Redis, basic Telethon userbot that connects, basic RQ worker that can be started, and deployable Fly.io app with `tdl` installed in the image.
 
 **Steps:**
 
-1.  **[v] Project Setup:** `npm init -y`, install TS, ESLl chat export`."
+1.  `[v]` Project Setup: Structure, Git, venv.
+2.  `[ ]` Supabase Project Setup: Get connection string.
+3.  `[ ]` Dependencies (`requirements.txt`): Add `asyncpg`, `SQLAlchemy[asyncio]`.
+4.  `[ ]` Configuration (`config.py`, `.env`): Pydantic `Settings` for `DATABASE_URL`, `REDIS_URL`, `TELEGRAM_API_ID/HASH`, `TELEGRAM_SESSION_PATH` (`/data/telethon.session`), `TDL_CONFIG_DIR` (`/data/.tdl`), `TDL_OUTPUT_DIR_BASE` (`/data/tdl_output`), `LLM_API_KEY`, etc.
+5.  `[ ]` Logging (`app/logging_config.py`).
+6.  `[ ]` Database (`app/shared/db_models.py`, `app/shared/db_crud.py`):
+    *   Define `MonitoredChat` SQLAlchemy model.
+    *   Implement basic async CRUD functions for `MonitoredChat` (add, get, list, update, delete).
+    *   SQLAlchemy async engine setup in `app/shared/db_models.py` or a `database.py`.
+7.  `[ ]` Redis Client & Queue (`app/shared/redis_client.py`).
+8.  `[ ]` Telethon Client Helper (`app/userbot/client.py`).
+9.  `[ ]` `tdl` Executor Stub (`app/worker/tdl_executor.py`): Define `async def execute_tdl_command(args: list[str], timeout_sec: int = 60) -> dict: raise NotImplementedError`.
+10. `[ ]` Worker Task Stub (`app/worker/tasks.py`): `def process_monitored_chat(...): raise NotImplementedError`. `def periodic_monitoring_check(...): pass`.
+11. `[ ]` Entry Points (`run_userbot.py`, `run_worker.py`, `run_scheduler.py`).
+12. **[ ] `Dockerfile`:**
+    *   Install Python, pip.
+    *   **Install `tdl`:** Download appropriate prebuilt binary from `tdl` releases and place in `/usr/local/bin/` or similar. `chmod +x`.
+    *   Install Python dependencies from `requirements.txt`.
+    *   Copy application code.
+13. **[ ] `fly.toml`:** Define `userbot`, `rqworker`, `rqscheduler` services. Define Redis app (or use external). Persistent volume `/data` mounted to ALL Python services. Map secrets. Set start commands.
+14. **[ ] Initial Tests:** Config, Redis client, DB CRUD (mock DB session), basic `tdl_executor` (mock `subprocess`).
+15. **[ ] Manual/Deployment Test:**
+    *   Deploy to Fly.io. Create tables in Supabase.
+    *   `fly ssh console -s userbot` (or process group for userbot):
+        *   Run `tdl login` *once* interactively. Ensure `TDL_CONFIG_DIR` is used.
+        *   Run `run_userbot.py` *once* interactively for Telethon auth. Ensure `TELEGRAM_SESSION_PATH` is used.
+    *   Verify all services start and connect (userbot to TG, all to Redis & Supabase). Check logs.
+
+**End of Phase 1:** Deployable core infrastructure. `tdl` is available. Userbot authenticates. Workers and scheduler can start. DB is accessible.
 
 ---
 
-## Phase 1: Core Setup, Config, CLI Arguments, and Basic `int, Prettier, Jest/Vitest, core dependencies (`dotenv`, `inquirer`, `chalk`, `commander`/tdl` Orchestration
+## Phase 2: Userbot UI - Monitoring Management Commands
 
-**Goal:** Set up the Node.js/TypeScript project, configure environment variables, implement CLI argument parsing, and create basic functions to call `tdl chat ls` and parse its output.
+**Goal:** Implement Userbot Telethon handlers for `/monitor add/remove/list/prompt/run` commands, interacting with Supabase via CRUD functions.
 
-**Steps:**
+**Steps (`app/userbot/handlers.py`, `app/userbot/ui.py`, `app/userbot/state.py` for temporary list caches if needed):**
 
-1.  **[v] Project Setup:** Create directories/files per structure. `npm init -y`. Install`yargs`, `axios`). Setup `tsconfig.json`, ESLint/Prettier configs. Create directory structure. Add core dependencies: `typescript`, `ts-node`, `@types/node`, `dotenv`, `yargs` (or ` `.gitignore`.
-2.  **[ ] Configuration (`src/config.ts`, `.env`):**
-    commander`), `eslint`, `prettier`, testing framework (`jest` or `vitest`).
-2.  **[*   `config.ts`: Load `LLM_API_KEY`, `LLM_ENDPOINT_URL` (optional), `TDL_OUTPUT_DIR`, `CLEANED_DATA_DIR`, `REPORT_HTML_PATH` from `.env` using `dotenv`. Validate critical values. Export typed config object.
-    *   `. ] `tsconfig.json`:** Configure TypeScript compiler options (target, module, outDir, sourceMap, strict,env`: Define local values.
-3.  **[ ] Logging Setup (`src/utils.ts`):** Implement esModuleInterop, etc.).
-3.  **[ ] `package.json` Scripts:** Add scripts for `build` `setupLogger()` using `winston` or `pino`.
-4.  **[ ] Basic CLI Entry Point (`src (`tsc`), `start` (`ts-node src/index.ts`), `dev` (`nodemon --watch src/main.ts`):**
-    *   Import logger setup, config.
-    *   Basic `async function --exec ts-node src/index.ts`), `lint`, `test`.
-4.  **[ ] run() { ... }` called at end. Placeholder for now.
-5.  **[ ] `tdl Configuration (`src/config.ts`, `.env`):**
-    *   `src/config.ts`: Use` Orchestrator (`src/tdl_orchestrator.ts`):**
-    *   Import `spawn `dotenv.config()`. Export constants like `LLM_API_KEY`, `LLM_ENDPOINT_URL`, `LLM_MODEL_NAME`, `TDL_EXECUTABLE_PATH` (optional, default to `tdl`).` from `child_process`, `config`.
-    *   Implement `async function executeTdlCommand(args: string[]): Promise<{ stdout: string, stderr: string, success: boolean }>`:
-        *   Uses Validate that critical API keys are present.
-    *   `.env`: Store `LLM_API_KEY` `spawn('tdl', args, { stdio: 'pipe' })`.
-        *   Captures `stdout and any other secrets. Update `.gitignore`.
-5.  **[ ] Logging:** Implement a simple logger (e.g`, `stderr`. Handles `error` and `close` events.
-        *   Returns object with captured output and success., functions wrapping `console.log/error` with timestamps/levels, or use `pino`).
-6.  **[ ] CLI Argument Parsing (`src/index.ts`):**
-    *   Use `yargs`. Define status. Log command and output.
-    *   Implement `async function listChats(): Promise<Array<{ id: string, arguments:
-        *   `--chats` (string, required, comma-separated list of chat IDs/usernames/ title: string, type: string }>>` (Conceptual, `tdl chat ls` output is not JSON bylinks).
-        *   `--prompt` (string, required, the LLM prompt).
-        *   ` default, might need to parse text or check if `tdl chat ls -o json` exists and is usable). *--output-dir` (string, optional, default `./telegram_reports`).
-        *   `--tdl-Simpler: Instruct user to use `tdl chat ls` manually first to get IDs.*
-    *   Implement `asyncpath` (string, optional, path to `tdl` if not in PATH).
-7.  **[ function exportChatHistory(chatIdOrName: string, outputJsonPath: string): Promise<void>`: Calls ] `tdl` Orchestrator Basics (`src/tdl_orchestrator.ts`):**
-    *    `executeTdlCommand` with `['chat', 'export', '-c', chatIdOrName, '--all', '-o', outputJsonPath]`. Throws error on failure.
-    *   Implement `async function exportChatParticipants(chatIdImplement `async function executeTdlCommand(tdlPath: string, args: string[]): Promise<{ stdout: string;OrName: string, outputJsonPath: string): Promise<void>`: Calls `executeTdlCommand` with `['chat', 'users', '-c', chatIdOrName, '-o', outputJsonPath]`. Throws error on failure stderr: string; success: boolean }>`:
-        *   Uses `child_process.execFile(tdlPath, args, { timeout: ... })`.
-        *   Wraps in `new Promise` to handle callback or uses. (Note: Check if `tdl` can determine if it's a group before trying to export users, `util.promisify`.
-        *   Logs command, stdout, stderr, exit code. Returns success status or handle error if it's a channel).
-6.  **[ ] TypeScript Types (`src/types/td.
-    *   Implement `async function listChats(tdlPath: string): Promise<Array<{id: string |l_types.ts`):** Define basic interfaces for the expected structure of `tdl`'s JSON output for messages and number; title: string; type: string}>>`:
-        *   Calls `executeTdlCommand` with `[' users (based on `tdl` documentation or sample output).
-7.  **[ ] Initial Tests (`tests/tdchat', 'ls', '-o', 'json']`.
-        *   Parses the JSON output from `stdoutl_orchestrator.test.ts`):**
-    *   Mock `child_process.spawn`.`. Validates structure.
-        *   Transforms into a clean array of chat objects. Handles `tdl` command Test that `executeTdlCommand` constructs commands correctly and handles different exit codes/errors.
-    *   Test errors.
-8.  **[ ] Main Entry (`src/index.ts`):**
-    *   Parse `exportChatHistory` and `exportChatParticipants` call `executeTdlCommand` with correct args.
-8. CLI args.
-    *   (For testing Phase 1) Call `listChats`, print results.
-    *   Basic  **[ ] Manual Testing:**
-    *   Ensure `tdl` is installed and authenticated (`tdl login` error handling.
-9.  **[ ] Testing (`tests/tdl_orchestrator.test.ts` done manually).
-    *   Run parts of `tdl_orchestrator.ts` (e.g):** Unit test `executeTdlCommand` (mock `child_process.execFile`). Test `listChats., via a test script or temporary calls in `main.ts`).
-    *   Verify `tdl` commands are executed` by mocking `executeTdlCommand` to return sample JSON output.
-10. **[ ] Manual Testing and JSON files are created in `config.TDL_OUTPUT_DIR`. Check console logs.
+1.  **[ ] CRUD for Monitoring (`app/shared/db_crud.py`):** Ensure all needed async CRUD functions for `MonitoredChat` are implemented and tested.
+2.  **[ ] UI Helpers (`app/userbot/ui.py`):** `format_monitored_chats_list` for Telegram messages.
+3.  **[ ] State Management (`app/userbot/state.py` - Optional for this Phase):** Only if `/monitor remove <number>` needs a temporary list cache in Redis. Otherwise, commands can be self-contained.
+4.  **[ ] Event Handlers (`app/userbot/handlers.py`):**
+    *   Use `async with async_sessionmaker() as db_session:` within handlers needing DB access.
+    *   Implement `/monitor add`: Parses input, resolves `chat_identifier` via `client.get_entity`, calls `db_crud.add_monitored_chat`, responds.
+    *   Implement `/monitor list`: Calls `db_crud.get_all_monitored_chats_for_user`, formats via `ui`, responds.
+    *   Implement `/monitor remove`: Parses input, resolves, calls `db_crud.remove_monitored_chat`, responds.
+    *   Implement `/monitor prompt`: Parses, resolves, calls `db_crud.update_monitored_chat_prompt`, responds.
+    *   Implement `/monitor run`: Parses, resolves, gets `MonitoredChat` from DB. Enqueues `app.worker.tasks.process_monitored_chat` (see Phase 3). Responds "Manual run triggered...", stores status message ID in Redis via `state.store_status_message` (key like `status_msg:{request_id}`).
+5.  **[ ] Register Handlers & Run Userbot (`run_userbot.py`).**
+6.  **[ ] Testing:** Unit test handlers (mock Telethon, DB CRUD, RQ enqueue).
+7.  **[ ] Manual Testing:** Deploy. Test all `/monitor` commands. Verify Supabase DB data.
 
-**End of Phase :** Ensure `tdl` is installed and `tdl login` has been done. Run `npm run dev --1:** Core project setup complete. The orchestrator can call `tdl` commands to export raw data as JSON files.
+**End of Phase 2:** User can manage monitored chat subscriptions via Telegram. Manual runs can be triggered (jobs enqueued but won't fully process yet).
 
 ---
 
-## Phase 2: User Interaction, Data Processing & Cleaning
+## Phase 3: RQ Worker - `tdl` Orchestration, Cleaning, LLM
 
-**Goal:** Implement console prompts for chat selection and LL --help`. Run `npm run dev -- --chats "@somechannel" --prompt "test"` (it will just listM prompt. Parse `tdl` JSON output, clean history text.
+**Goal:** Implement the RQ worker task that uses `tdl_executor.py` to run `tdl` commands, parses JSON, cleans text, calls the LLM, and notifies progress/completion via Redis Pub/Sub. Implement the scheduled task.
 
 **Steps:**
 
-1.  **[ chats for now). Check console output and logs.
+1.  **[ ] `tdl` Executor (`app/worker/tdl_executor.py`):**
+    *   Implement `async def execute_tdl_command(args: list[str], timeout_sec: int = 300) -> dict:`
+        *   Uses `asyncio.create_subprocess_exec('tdl', *args, stdout=PIPE, stderr=PIPE, env={... 'TDL_CONFIG_DIR': settings.TDL_CONFIG_DIR ...})`.
+        *   `await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)`.
+        *   Check `proc.returncode`. If non-zero, raise custom exception with stderr.
+        *   Parse `stdout_data.decode()` as JSON. Handle `JSONDecodeError`.
+        *   Return parsed JSON. Robust error logging.
+2.  **[ ] LLM Service (`app/worker/llm_service.py`):** (As in v5.1, implement `get_llm_summary` with truncation).
+3.  **[ ] Text Cleaner (`app/worker/text_cleaner.py`):** (Rename from `utils.py` if only for cleaning). Implement `clean_tdl_message_text` (takes a message object from `tdl` JSON).
+4.  **[ ] Scheduled Task (`app/worker/tasks.py`):**
+    *   Implement `periodic_monitoring_check(user_telegram_id: int):` Calls `db_crud.get_due_monitored_chats`, enqueues `process_monitored_chat` for each, updates `last_checked_at` in DB.
+5.  **[ ] Main Worker Task (`app/worker/tasks.py`):**
+    *   Implement `process_monitored_chat(monitored_chat_db_id: int, request_id: Optional[str] = None, is_manual_run: bool = False):`
+        *   Job ID, Redis conn (for Pub/Sub), DB session. `publish_status` helper.
+        *   Fetch `MonitoredChat` from DB.
+        *   Define unique JSON output paths in `settings.TDL_OUTPUT_DIR_BASE` (e.g., using `request_id` or `job_id`).
+        *   `publish_status('STARTED')`.
+        *   **History:** `publish_status('TDL_HISTORY_EXPORT')`. Call `tdl_executor.execute_tdl_command(['chat', 'export', '-c', str(monitored_chat.chat_id), '--min-id', str(monitored_chat.last_processed_message_id), '--all', '-o', history_json_path])`.
+        *   Parse history JSON. Clean messages using `text_cleaner`. Accumulate `cleaned_history_text`. Get `newest_message_id`.
+        *   **Participants:** If group, `publish_status('TDL_PARTICIPANTS_EXPORT')`. Call `tdl_executor.execute_tdl_command(['chat', 'users', ...])`. Parse. Format `participants_text`.
+        *   If no new history, `publish_status('NO_NEW_MESSAGES')`, update `last_processed_message_id` in DB, return success.
+        *   `publish_status('CALLING_LLM')`. Call `llm_service.get_llm_summary`.
+        *   Update `monitored_chat.last_processed_message_id` in DB.
+        *   `publish_status('SUCCESS')`. Return dict.
+        *   Handle all errors from `tdl_executor` and `llm_service`, `publish_status('FAILED', detail=...)`. Return failure dict.
+6.  **[ ] `run_scheduler.py` (or `fly.toml` service):** Ensure it schedules `periodic_monitoring_check`.
+7.  **[ ] Testing:** Unit test `tdl_executor` (mock `asyncio.create_subprocess_exec`). Unit test `llm_service`. Unit test `tasks.process_monitored_chat` (mock `tdl_executor`, `llm_service`, DB CRUD, Redis publish).
+8.  **[ ] Manual Testing:** Trigger jobs (manual/scheduled). Check worker logs. Check `tdl_output` files. Check Pub/Sub. Check DB updates.
 
-**End of Phase 1:** TypeScript project setup is complete. The ] UI Prompts (`src/ui_prompts.ts`):**
-    *   Import `inquirer`.
- app can parse CLI arguments and successfully call `tdl chat ls` and parse its output.
+**End of Phase 3:** Automated pipeline using `tdl` for extraction, cleaning, LLM processing, and status publishing.
 
 ---
 
-## Phase     *   Implement `async function getChatSelectionsFromUser(availableChats: Array<{ name: string, value: string }>): Promise<string[]>`: Uses `inquirer.prompt` with `type: 'checkbox'` to let user select chats from2: Data Extraction from `tdl` and File Saving
+## Phase 4: Userbot - Handling Pub/Sub Events & Delivering Insights
 
-**Goal:** Implement logic to use `tdl` to export history and participants for selected chats, parse the JSON, and save raw (uncleaned) data to temporary JSON files.
+**Goal:** Userbot listens to Redis Pub/Sub, updates Telegram status messages (for manual runs), and sends LLM insights/participant files to the user.
 
-**Steps:**
+**Steps (`app/userbot/event_listener.py`, `app/userbot/ui.py`, `app/userbot/results_sender.py`):**
 
-1.  **[ ] `tdl` Orchestrator (`src/tdl_orchestrator a list (list provided by `tdl chat ls` output, which needs to be fetched and parsed first, or user.ts`):**
-    *   Implement `async function exportChatHistory(tdlPath: string, chatId enters IDs manually).
-    *   Implement `async function getChatIdentifiersFromUser(): Promise<string[]>`: Prompts: string, outputJsonPath: string): Promise<boolean>`:
-        *   Calls `executeTdlCommand` with `['chat', 'export', '-c', chatId, '--all', '-o', outputJsonPath]`. user to manually enter comma-separated chat IDs or usernames.
-    *   Implement `async function getLlmPromptFromUser(): Promise<string>`: Uses `inquirer.prompt` with `type: 'input'` or `'editor'`.
+1.  **[ ] Pub/Sub Listener (`app/userbot/event_listener.py`):**
+    *   Implement `async def listen_for_job_events(client, settings):` Subscribes to `request_status:*`.
+    *   On message: Parse JSON. Get `request_id` (or other context to find `status_message_id` for manual runs).
+    *   If status is `PROGRESS` or intermediate from worker, call `ui.update_manual_run_status_message`.
+    *   If status `SUCCESS` or `FAILED` (final from worker's return dict published): Call `handle_insight_job_completion`.
+2.  **[ ] Job Completion Handler (`event_listener.py`):**
+    *   Implement `async def handle_insight_job_completion(client, job_id_or_request_id, settings):`
+        *   Fetch final job result/details from where worker stored it (e.g., if worker task returns a dict, RQ stores it; or worker task can write to a specific Redis key `result:{job_id}`).
+        *   Get `user_id`, `chat_id`, `chat_title`, `summary`, `participants_file_path`, `error`, `status_message_id_for_manual_run`.
+        *   If success: Call `results_sender.send_llm_insight_and_files`. Update manual run status message.
+        *   If failure: Call `results_sender.send_failure_insight_message`. Update manual run status message.
+3.  **[ ] Results Sender (`app/userbot/results_sender.py`):**
+    *   Implement `async def send_llm_insight_and_files(client, user_id, chat_title, summary, participants_file_path):`
+        *   Send summary message. Handle length.
+        *   If `participants_file_path` exists, `client.send_file`, then `os.remove` from persistent disk.
+    *   Implement `async def send_failure_insight_message(client, user_id, chat_title, error_message):`
+4.  **[ ] UI Update (`app/userbot/ui.py`):** Implement `async def update_manual_run_status_message(...)`.
+5.  **[ ] Start Listener (`run_userbot.py`).**
+6.  **[ ] Testing:** Unit test event listener logic, completion handler, results sender.
+7.  **[ ] Manual Testing:** Full end-to-end. Check Telegram for insight messages and files. Check status edits for manual runs.
 
-        *   Returns success status. Handles `tdl` errors.
-    *   Implement `async function exportChat2.  **[ ] `tdl` Orchestrator Update (`src/tdl_orchestrator.Participants(tdlPath: string, chatId: string, outputJsonPath: string): Promise<boolean>`:
-ts`):**
-    *   Refine `listChats()`: If `tdl chat ls -o json`        *   Calls `executeTdlCommand` with `['chat', 'users', '-c', chatId, '-o', outputJsonPath]`.
-        *   Returns success status. Handles `tdl` errors.
-2 *is not* an option, this function might call `tdl chat ls`, capture its text output, and parse.  **[ ] File Saver (`src/file_saver.ts` - Initial for JSON):**
-     it (regex/string splitting) to create the `availableChats` structure for `inquirer`. This parsing can be brittle*   Implement `async function ensureOutputDir(dirPath: string): Promise<void>` using `fs.mkdir(..., { recursive: true })`.
-3.  **[ ] Main Logic (`src/index.ts`):**
-    *   Get. **Simpler initial approach: `getChatIdentifiersFromUser` from `ui_prompts.ts` where `tdlPath` from config or args. Get `outputDir` from args.
-    *   Call `ensure user types IDs/names they already know.**
-3.  **[ ] Data Processor (`src/data_processor.ts`):**
-    *   Import `fs/promises`, `config`, types from `tdl_types.OutputDir`.
-    *   **Iterate `parsedArgs.chats`:** (Split comma-separated string, resolvets`.
-    *   Implement `function cleanMessageText(messageText: string, options?: { removeUrls?: boolean, remove to IDs if necessary - for now, assume user provides correct IDs/usernames usable by `tdl`).
-    *Usernames?: boolean }): string | null`: (Port the Python regex cleaning logic to TypeScript/JavaScript regex).
-    *   For each `chatIdentifier`:
-        *   Define `historyJsonPath` and `participantsJsonPath` in a temporary subfolder of `outputDir` (e.g., `outputDir/temp_json/`).
-        *   Implement `async function processHistoryJson(jsonFilePath: string, cleanedHistoryTxtPath: string): Promise<{ success   Call `await tdlOrchestrator.exportChatHistory(tdlPath, chatIdentifier, historyJsonPath)`.: boolean, error?: string }>`:
-        *   Reads JSON file. Validates structure against `tdl_ Log success/failure.
-        *   Call `await tdlOrchestrator.exportChatParticipants(tdltypes.ts`.
-        *   Iterates messages, extracts text, calls `cleanMessageText`.
-        *   WritesPath, chatIdentifier, participantsJsonPath)`. Log success/failure. *Note: `tdl chat users` might fail cleaned text to `cleanedHistoryTxtPath`.
-        *   Returns status. Handles file/JSON errors.
-     for channels; handle gracefully.*
-4.  **[ ] Testing:** Unit test new `tdl_orchestrator` functions (mock `executeTdlCommand`).
-5.  **[ ] Manual Testing:** Run with actual*   Implement `async function processParticipantsJson(jsonFilePath: string, cleanedParticipantsTxtPath: string): Promise<{ success: boolean, error?: string }>`:
-        *   Reads JSON file. Validates.
-        *    chat IDs. Verify `tdl` is called correctly. Check `temp_json/` folder for raw JSON export files. Examine logs for errors.
-
-**End of Phase 2:** The application can extract raw history and participant dataIterates users, formats "ID: ..., Username: ..., Name: ..." lines.
-        *   Writes to `cleanedParticipantsTxtPath`.
-        *   Returns status. Handles errors.
-4.  **[ ] Main CLI for specified chats using `tdl` and save these as intermediate JSON files.
+**End of Phase 4:** Complete, polished user experience within Telegram.
 
 ---
 
-## Phase 3: Text Flow (`src/main.ts`):**
-    *   Call `config.load()` (or ensure config is loaded). Call `setupLogger()`.
-    *   `chatIdentifiers = await ui_prompts.getChatIdentifiersFromUser()`. Cleaning, LLM Interaction, Saving Processed Text
+## Phase 5: Polishing, Advanced Features & Productionizing
 
-**Goal:** Parse the raw JSON, clean text, call LLM API, and save cleaned history, participants, and LLM summary to final `.txt` files.
+**Goal:** Refine UX, add features like `/settings`, ensure stability on Fly.io.
 
 **Steps:**
 
-1. (Or call `tdl_orchestrator.listChats` then `ui_prompts.getChatSelectionsFromUser`).
-    *   `llmPrompt = await ui_prompts.getLlmPromptFromUser()  **[ ] Text Cleaner (`src/text_cleaner.ts`):**
-    *   Implement `function`.
-    *   Create output directories (`config.TDL_OUTPUT_DIR`, `config.CLEANED_DATA_DIR`) if they don't exist.
-    *   Loop `chatIdentifiers`:
-        *   Define cleanMessageText(messageText: string, options?: { removeUrls?: boolean; removeUserMentions?: boolean /* ...other options */ }): string | null`:
-        *   Define and apply regex for system messages, media placeholders, URLs, paths for raw JSON output and cleaned TXT output.
-        *   `await tdl_orchestrator. user mentions/prefixes.
-        *   Return cleaned string or `null` if empty/irrelevant.
-2.  **[ ] LLM Service (`src/llm_service.ts`):**
-    *   Implement `async function getexportChatHistory(identifier, historyJsonPath)`.
-        *   `await data_processor.processHistoryJson(historyLlmSummary(apiKey: string, endpointUrl: string | undefined, modelName: string | undefined, combinedPromptAndHistory: string, maxHistoryTokens: number): Promise<string | null>`:
-        *   Implement truncation logic forJsonPath, historyTxtPath)`.
-        *   If group (how to determine this? `tdl` `combinedPromptAndHistory` based on `maxHistoryTokens`.
-        *   Use `axios` or `fetch` might error, or `tdl chat ls` output might indicate):
-            *   `await tdl_orchestrator.exportChatParticipants(identifier, participantsJsonPath)`.
-            *   `await data_processor.processParticipants to call LLM API.
-        *   Handle API errors, timeouts. Parse response. Return summary or `null`.
-Json(participantsJsonPath, participantsTxtPath)`.
-        *   Store paths of generated cleaned files for report generation.
-    3.  **[ ] File Saver (`src/file_saver.ts` - for TXT):**
-    *   Implement `async function saveTextFile(filePath: string, content: string): Promise<void>` using*   Log completion/errors for each step.
-5.  **[ ] Testing:** Unit test `ui_prompts.ts` (mock `inquirer`). Unit test `data_processor.ts` functions with sample `tdl` JSON `fs.writeFile`.
-4.  **[ ] Main Logic (`src/index.ts` - extend loop from Phase 2):**
-    *   Inside the loop for each `chatIdentifier`:
-        *   **After data and regex cleaning logic.
-6.  **[ ] Manual Testing:** Run `npm start` (or compiled successful JSON export:**
-            *   Define final output paths for cleaned history TXT, participants TXT, and summary TXT in executable). Test chat selection, prompt input. Verify `tdl` calls, JSON creation, and TXT file creation with a structured way within `outputDir` (e.g., `outputDir/chat_XYZ/history.txt`). cleaned content.
+1.  **[ ] `/settings` Command:** Allow user to set default LLM prompt or per-chat preferences via inline keyboards, store in Supabase.
+2.  **[ ] Enhanced `/status` Command:** Userbot command to query Supabase for status of recent/ongoing monitored chat processing.
+3.  **[ ] `/pause` & `/resume` Monitoring:** Toggle `is_active` in `MonitoredChat` table.
+4.  **[ ] `/cancel` RQ Jobs (Advanced):** For manual runs, allow cancellation. RQ jobs can be cancelled. Update status message.
+5.  **[ ] Robust Error Handling:** More specific error messages to user. Better logging of `tdl` stderr.
+6.  **[ ] Fly.io Config:** Optimize `fly.toml` (resources, scaling for `rqworker`, health checks).
+7.  **[ ] File Cleanup:** Robust cleanup for `tdl_output` intermediate JSONs and any orphaned TXT files on the persistent volume.
+8.  **[ ] README:** Finalize with Fly.io deployment, Supabase setup, initial `tdl login` & Telethon auth via `fly ssh console`, all user commands.
+9.  **[ ] Security Review:** Secrets, file paths, `tdl` execution environment.
+10. **[ ] Load Testing (Conceptual):** Monitor performance if user monitors many very active chats.
 
-**End of Phase 2:** User can interactively select chats, provide a prompt. The application
-            *   **Process History JSON:**
-                *   Read `historyJsonPath` (`fs.readFile`). orchestrates `tdl` to get raw data, then processes and cleans it into `.txt` files.
-
----
-
-## Parse JSON.
-                *   Iterate messages, extract text, call `text_cleaner.cleanMessageText`. Phase 3: LLM Integration & HTML Report Generation
-
-**Goal:** Call the chosen LLM API with cleaned history
-                *   Concatenate cleaned texts into `fullCleanedHistory`.
-                *   Call `file_saver.saveTextFile(cleanedHistoryTxtPath, fullCleanedHistory)`.
-            *   **Process Participants JSON:**
-                *   Read `participantsJsonPath`. Parse JSON.
-                *   Iterate users, format (ID, Username, Name). and user prompt. Generate a final HTML report displaying summaries and links to data files.
-
-**Steps:**
-
-1.  **[ ] LLM Service (`src/llm_service.ts`):**
-    *   Import `axios` or use `fetch`, `config`.
-    *   Implement `async function getLlmSummary(user
-                *   Concatenate into `formattedParticipantsText`.
-                *   Call `file_saver.saveTextFile(participantsTxtPath, formattedParticipantsText)`.
-            *   **Call LLM:**
-                *   Load `LLPrompt: string, historyText: string): Promise<string | null>`:
-        *   Load `LLM_API_KEY`, `LLM_ENDPOINT_URL` from `config`.
-        *   Implement truncation for `historyText`M_API_KEY` etc. from `config`.
-                *   Construct prompt for LLM: `User Prompt: ${parsedArgs.prompt}\n\nChat History:\n${fullCleanedHistory}`.
-                 based on `config.MAX_LLM_HISTORY_TOKENS`.
-        *   Construct final prompt for LLM.
-        *   Make `axios.post` or `fetch` call. Handle headers, body, timeout.
-        *   Implement robust error handling for API calls (status codes, network errors). Log errors.
-        *   Parse response*   `summary = await llm_service.getLlmSummary(apiKey, ..., combinedPrompt)`.
-                *   If `summary`, call `file_saver.saveTextFile(summaryTxtPath, summary)`. Else, extract summary. Return summary or `null`.
-2.  **[ ] Report Generator (`src/report_generator.ts`):**
-    *   Import `fs/promises`, `path`, `config`.
-    *    log LLM failure.
-            *   (Optional) Delete temporary JSON files from `outputDir/temp_json/`.
-Implement `interface ReportChatItem { chatId: string; chatTitle?: string; summary?: string | null; historyTxtPath?: string;5.  **[ ] Types (`src/types.ts`):** Define interfaces for `tdl` message structure participantsTxtPath?: string; error?: string; }`.
-    *   Implement `function generateHtmlReport(report, participant structure, etc., to help with JSON parsing.
-6.  **[ ] Testing:** Unit test `textItems: ReportChatItem[]): string`:
-        *   Generates HTML string. Embed CSS in `<style>` tag_cleaner`. Unit test `llm_service` (mock HTTP client). Unit test main processing logic (mock for simplicity.
-        *   Loops `reportItems`. For each item, creates a section displaying title/ID, the file reads/writes, mock `tdl_orchestrator` outputs, mock `llm_service`).
-7.  **[ ] Manual Testing:** Run with chat IDs and a prompt. Check the final `outputDir` for ` LLM summary (or error message), and relative links to cleaned `.txt` files (e.g., `<a href="./history.txt`, `participants.txt`, and `summary.txt`. Verify content and cleaning. Check LLM APIcleaned_data/chat_123_history.txt">View History</a>`).
-        *   Design for a "beautiful call logs/errors.
-
-**End of Phase 3:** Full data pipeline from `tdl` extraction to cleaned, award-winning" look.
-3.  **[ ] Main CLI Flow Update (`src/main.ts text files and LLM summary files is working.
-
----
-
-## Phase 4: HTML Report Generation
-
-**Goal:** Generate a`):**
-    *   Inside the loop processing each chat identifier:
-        *   After `data_processor.process polished `report.html` file that lists processed chats and links to their respective output text files.
-
-**Steps:**
-
-1HistoryJson`:
-            *   Read the cleaned history text from the generated TXT file.
-            *   `.  **[ ] HTML Reporter (`src/html_reporter.ts`):**
-    *   Implement `interfacesummary = await llm_service.getLlmSummary(llmPrompt, cleanedHistoryText)`.
-            *   Store ProcessedChatData { chatId: string; title?: string; historyFile?: string; participantsFile?: string; summary `summary` along with file paths.
-    *   After the loop:
-        *   Collect all `ReportChatItem` data.
-        *   `htmlContent = report_generator.generateHtmlReport(allReportItems)`.
-        *   `await fs.writeFile(config.REPORT_HTML_PATH, htmlContent)`.
-        *File?: string; error?: string; }`
-    *   Implement `async function generateReport(processedChats: ProcessedChatData[], reportHtmlPath: string): Promise<void>`:
-        *   **CSS Styles:** Define CSS as   Log `Report generated: ${config.REPORT_HTML_PATH}`. Optionally open it automatically (`open` package on npm).
-4.  **[ ] Testing:** Unit test `llm_service.ts` (mock a string constant within the function (or load from a simple CSS file string). Aim for clean, modern, responsive.
-        *   **HTML Structure:** Use template literals to build the HTML string.
-            *   Include header, `axios`/`fetch`, test truncation). Unit test `report_generator.ts` (check HTML output structure and title, embedded CSS.
-            *   Loop through `processedChats`.
-            *   For each chat, create a section links).
-5.  **[ ] Manual Testing:** Run full flow. Verify LLM calls are made. Check/card:
-                *   Display `chatId` (and `title` if you manage to get it from ` `report.html` content, summaries, and links. Test with LLM API errors.
-
-**End of Phase tdl` output or user input).
-                *   If `historyFile`, add `<a href="./${path3:** Full application complete. User interacts via console, data is extracted via `tdl`, processed, summarized by LLM,.relative(path.dirname(reportHtmlPath), historyFile)}">View History</a>`. Make links relative to the and presented in a local HTML report.
-
----
-
-## Phase 4: Polishing, Packaging & Documentation
-
-**Goal:** Ref report's location.
-                *   Same for `participantsFile` and `summaryFile`.
-                *   If `ine error handling, improve user feedback, consider packaging for easier distribution, and write comprehensive documentation.
-
-**Steps:**
-
-error`, display the error message.
-        *   Call `file_saver.saveTextFile(reportHtmlPath, generatedHtmlString)`.
-2.  **[ ] Main Logic (`src/index.ts` - extend):**
-1.  **[ ] Error Handling & User Feedback:**
-    *   Review all `try...catch` blocks    *   After the loop processing all chats:
-        *   Collect `ProcessedChatData` objects for each chat. Ensure user-friendly error messages are printed to console using `chalk` for better visibility.
-    *   Provide clear progress indicators during `tdl` execution and LLM calls (e.g., "Exporting history for Chat X... (this (with paths to the TXT files created in Phase 3, or error messages).
-        *   Define `reportHtmlPath = path.join(outputDir, 'report.html')`.
-        *   Call `await html_reporter.generateReport(allProcessedChatData, reportHtmlPath)`.
-        *   Print `Report generated: ${reportHtmlPath}` may take a while)"). `ora` package can be used for spinners.
-2.  **[ ] Configuration Flexibility:**
-    *   Consider adding command-line arguments (via `commander` or `yargs`) to override `. to console.
-3.  **[ ] Testing:** Unit test `generateReport` (provide mock `ProcessedChatData`, check if output HTML string contains correct links and structure).
-4.  **[ ] Manual Testing:** Run the full applicationenv` config for output directories, LLM model, etc.
-3.  **[ ] Packaging (Optional):. Open the generated `report.html` in a browser. Verify links work, content is displayed, and styling is acceptable**
-    *   Investigate `pkg` or `nexe` to bundle the Node.js/TS app into a single executable. This simplifies distribution *but user still needs `tdl` installed separately*.
-    *   Document this process if. Test with scenarios where some files might be missing (e.g., participants for a channel, or LLM summary implemented.
-4.  **[ ] README.md:**
-    *   Detailed setup instructions: Installing Node.js, failed).
-
-**End of Phase 4:** A beautiful HTML report is generated, providing a user-friendly interface to `tdl`, running `tdl login`, cloning repo, `npm install`.
-    *   How to configure `. the extracted and summarized data.
-
----
-
-## Phase 5: Polishing, Error Handling, Build & Distribution (env` (API keys).
-    *   How to run the application.
-    *   Explanation of output filesOptional)
-
-**Goal:** Refine error handling, improve user feedback, add minor features, and prepare for potential distribution and `report.html`.
-    *   Troubleshooting common issues.
-5.  **[ ] Final Code.
-
-**Steps:**
-
-1.  **[ ] Enhanced Error Handling & Feedback:**
-    *   Throughout all Review & Refactor:** Clean up code, ensure consistency, remove dead code, verify all AI best practices are met.
-6 `tdl` calls and API calls, provide more specific error messages to the console.
-    *   In the HTML report,.  **[ ] Extensive Manual Testing:** Test on different OS if possible (if packaging). Test with various chat types clearly indicate if a step failed for a particular chat (e.g., "History: Extracted", "Participants: and sizes. Test different LLM prompts.
-
-**End of Phase 4:** A polished, well-documented CLI N/A (Channel)", "Summary: Failed - API Error").
-2.  **[ ] Configuration for Cleaning:** Allow users to pass CLI flags to toggle `removeUrls`, `removeUserMentions` in `text_cleaner application that is relatively easy for users (who are comfortable with installing `tdl` and Node.js) to use.
-.ts` (pass options down).
-3.  **[ ] Resolve Chat Titles:** Modify `tdl_orchestr```
-
-This plan provides a very detailed, step-by-step guide suitable for an AI developer agent, focusing on Nodeator.listChats` to also return titles. Store these and use them in the processing loop and HTML report for better.js/TypeScript for orchestration and leveraging the external `tdl` tool for the core Telegram functionality. It aims for UX.
-4.  **[ ] User Input Validation:** More robust validation for `--chats` argument (e. a good user experience via console interaction and a final HTML report, while keeping the custom code complexity manageable.
+**End of Phase 5:** A highly refined, feature-rich, and robust personal Telegram insight agent.
