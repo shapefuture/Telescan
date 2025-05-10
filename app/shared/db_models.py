@@ -1,17 +1,21 @@
-# SQLAlchemy models for Supabase
+# SQLAlchemy models for Supabase/Postgres
 
-# Example stub for MonitoredChat
-# from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-# from sqlalchemy.orm import declarative_base
-# Base = declarative_base()
+from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine, AsyncSession
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import BigInteger, String, Boolean, Text, Integer
 
-# class MonitoredChat(Base):
-#     __tablename__ = "monitored_chats"
-#     id = ...
-#     user_id = ...
-#     chat_id = ...
-#     prompt = ...
-#     last_processed_message_id = ...
-#     is_active = ...
+class Base(AsyncAttrs, DeclarativeBase):
+    pass
 
-# TODO: Implement full SQLAlchemy model
+class MonitoredChat(Base):
+    __tablename__ = "monitored_chats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)  # Telegram user id
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)  # Telegram chat id
+    chat_title: Mapped[str] = mapped_column(String(256))
+    prompt: Mapped[str] = mapped_column(Text)
+    last_processed_message_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+# Engine/session setup will be in a separate database.py
